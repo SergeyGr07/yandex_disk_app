@@ -31,38 +31,30 @@ def list_files() -> Union[str, Response]:
 
     if response.status_code == 200:
         data: dict = response.json()
-        print(f"DATA: {data}")
         files: list = data['_embedded']['items']
         return render_template('list.html', files=files, public_key=public_key)
     else:
         return f"Error: {response.status_code} - {response.text}"
 
 
-@app.route('/download/<path:file_path>')
-def download_file(file_path: str) -> Union[Response, str]:
-    public_key: Union[str, None] = request.args.get('public_key')
-    download_url_api: str = app.config['DOWNLOAD_URL']
-    params: dict = {'public_key': public_key, 'path': file_path}
+@app.route('/download')
+def download_file() -> Response:
+    file_url = request.args.get('file_url')
 
-    headers: dict = {
-        'Authorization': f'OAuth {app.config["OAUTH_TOKEN"]}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    print(f"URL for download: {download_url_api}")
-    response = requests.get(download_url_api, headers=headers, params=params)
-    print(f"RESPONCE: {response.url }")
-
-    if response.status_code == 200:
-        download_url: str = response.json().get('href')
-
-        if not download_url:
-            return "Error: Download link not found"
-
-        return redirect(download_url)
-
+    if file_url:
+        response = requests.get(file_url, stream=True)
+        if response.status_code == 200:
+            content_type = response.headers.get('Content-Type', 'application/octet-stream')
+            filename = file_url.split('/')[-1]
+            return Response(
+                response.iter_content(chunk_size=1024),
+                content_type=content_type,
+                headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+            )
+        else:
+            return f"Error: {response.status_code} - {response.text}"
     else:
-        return f"Error: {response.status_code} - {response.text}"
+        return "Error: No file URL provided."
 
 
 if __name__ == '__main__':
